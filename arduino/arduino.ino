@@ -14,7 +14,7 @@
 #define PIN_CSONAR_ECH 27
 #define PIN_RSONAR_TRG 30
 #define PIN_RSONAR_ECH 31
-#define SONAR_MAX_DISTANCE 20 //cm
+#define SONAR_MAX_DISTANCE 10 //cm
 //MOTORS
 #define PIN_LMOTOR_FWD 2
 #define PIN_LMOTOR_BWD 3
@@ -55,7 +55,7 @@ Motor motor[] = {
 };
 
 //ENCODERS
-volatile int encoder[2];
+volatile int encoder[] = {0,0};
 void ISR_encoder0() {encoder[0]++;}
 void ISR_encoder1() {encoder[1]++;}
 
@@ -63,13 +63,18 @@ void ISR_encoder1() {encoder[1]++;}
 const int minPower = MOVEMENT_MIN_POWER;
 int extraPower(0);
 const int extraPowerMultiplier = MOVEMENT_EXTRA_POWER_MULTIPLIER;
+
 void moveForward();
 void moveBackward();
-void moveLeft();
-void moveRight();
+void spinLeftward();
+void spinRightward();
 void moveStop();
+
 bool autonomousModeIsOn = false;
 void moveAutonomously();
+int extraAvoidanceMovements[] = {0,0,0}; //respectively: leftward, backward, rightward. After no more obstacles are detected, do these steps to move even further 
+bool areThereExtraAvoidanceMovements;
+void doExtraAvoidanceMovements();
 
 //COMMS
 void readSerialBT();
@@ -115,12 +120,12 @@ void moveBackward() {
     motor[1].set(int(-1*(minPower + extraPower*extraPowerMultiplier)));
     lcd.setCursor(0, 1); lcd.print("Backward");
 }
-void moveLeft() {
+void spinLeftward() {
     motor[0].set(int(-1*(minPower + extraPower*extraPowerMultiplier)));
     motor[1].set(int(1*(minPower + extraPower*extraPowerMultiplier)));
     lcd.setCursor(0, 1); lcd.print("Left    ");
 }
-void moveRight() {
+void spinRightward() {
     motor[0].set(int(1*(minPower + extraPower*extraPowerMultiplier)));
     motor[1].set(int(-1*(minPower + extraPower*extraPowerMultiplier)));
     lcd.setCursor(0, 1); lcd.print("Right   ");
@@ -128,27 +133,56 @@ void moveRight() {
 void moveStop() {
     motor[0].set(0);
     motor[1].set(0);
-    lcd.setCursor(0, 1); lcd.print("S       ");
+    lcd.setCursor(0, 1); lcd.print("        ");
 }
 
 void moveAutonomously() {
     if (!autonomousModeIsOn) {
-        if (sonar[1].ping()) moveStop();
+        //if (sonar[1].ping()) moveStop(); //prevents manually smashing into walls
         return;
     }
     
-    if (sonar[1].ping()) { // returns zero if no obstacles
+    if (sonar[1].ping()) { //method returns zero if no obstacles were detected
         moveBackward();
+
+        areThereExtraAvoidanceMovements = true;
+        extraAvoidanceMovements[1] = 10;
+        extraAvoidanceMovements[2] = 10; //will move back and right even further after no more obstacles are detected
     }
     else if (sonar[0].ping()) {
-        moveRight();    
+        spinRightward();
+
+        areThereExtraAvoidanceMovements = extraAvoidanceMovements[2] = 10;
     }
     else if (sonar[2].ping()) {
-        moveLeft();    
+        spinLeftward();
+
+        areThereExtraAvoidanceMovements = extraAvoidanceMovements[0] = 10;
     }
     else {
-        moveForward();    
+        if (areThereExtraAvoidanceMovements) doExtraAvoidanceMovements();
+        else moveForward();    
     }
+}
+
+void doExtraAvoidanceMovements() {
+    Serial.println("X");
+
+    if      (extraAvoidanceMovements[1]) {
+        extraAvoidanceMovements[1]--;
+        moveBackward();
+    }
+    else if (extraAvoidanceMovements[0]) {
+        extraAvoidanceMovements[0]--;
+        spinLeftward();
+    }
+    else if (extraAvoidanceMovements[2]) {
+        extraAvoidanceMovements[2]--;
+        spinRightward();
+    }
+    
+    if (!extraAvoidanceMovements[0] && !extraAvoidanceMovements[1] && !extraAvoidanceMovements[2]) 
+        areThereExtraAvoidanceMovements = false;
 }
 
 //COMMS
@@ -165,10 +199,10 @@ void readSerialBT() {
             if (!autonomousModeIsOn) moveBackward();
         }
         else if (c == 'L') {
-            if (!autonomousModeIsOn) moveLeft();
+            if (!autonomousModeIsOn) spinLeftward();
         }
         else if (c == 'R') {
-            if (!autonomousModeIsOn) moveRight();
+            if (!autonomousModeIsOn) spinRightward();
         }
         else if ('0' <= c && c <= 9+'0') {
             extraPower = c-'0';
@@ -191,7 +225,7 @@ void readSerialBT() {
 
 //LCD
 void updateLCD() {
-    lcd.setCursor(0, 0);
+    lcd.print("       "); lcd.setCursor(0, 0); //clear screen
     lcd.print(encoder[0]);
     lcd.print(' ');
     lcd.print(encoder[1]);
