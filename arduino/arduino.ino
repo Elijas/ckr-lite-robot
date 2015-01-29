@@ -14,7 +14,7 @@
 #define PIN_CSONAR_ECH 27
 #define PIN_RSONAR_TRG 30
 #define PIN_RSONAR_ECH 31
-#define SONAR_MAX_DISTANCE 10 //cm
+#define SONAR_MAX_DISTANCE 20 //cm
 //MOTORS
 #define PIN_LMOTOR_FWD 2
 #define PIN_LMOTOR_BWD 3
@@ -72,8 +72,13 @@ void moveStop();
 
 bool autonomousModeIsOn = false;
 void moveAutonomously();
-int extraAvoidanceMovements[] = {0,0,0}; //respectively: leftward, backward, rightward. After no more obstacles are detected, do these steps to move even further 
-bool areThereExtraAvoidanceMovements;
+struct ExtraAvoidanceMovements { //After no more obstacles are detected, do these steps to move even further from the previously found obstacles
+    bool active;
+    int b; //steps to do: backward
+    int l; //             leftward
+    int r; //             rightward
+    ExtraAvoidanceMovements() : active(false), b(0), l(0), r(0) {}
+} extraMoves;
 void doExtraAvoidanceMovements();
 
 //COMMS
@@ -144,23 +149,22 @@ void moveAutonomously() {
     
     if (sonar[1].ping()) { //method returns zero if no obstacles were detected
         moveBackward();
-
-        areThereExtraAvoidanceMovements = true;
-        extraAvoidanceMovements[1] = 10;
-        extraAvoidanceMovements[2] = 10; //will move back and right even further after no more obstacles are detected
+        extraMoves.active = true;
+        extraMoves.b = 10;
+        extraMoves.r = 10; //will move back and right even further after no more obstacles are detected
     }
     else if (sonar[0].ping()) {
         spinRightward();
-
-        areThereExtraAvoidanceMovements = extraAvoidanceMovements[2] = 10;
+        extraMoves.active = true;
+        extraMoves.r = 10;
     }
     else if (sonar[2].ping()) {
         spinLeftward();
-
-        areThereExtraAvoidanceMovements = extraAvoidanceMovements[0] = 10;
+        extraMoves.active = true;
+        extraMoves.l = 10;
     }
     else {
-        if (areThereExtraAvoidanceMovements) doExtraAvoidanceMovements();
+        if (extraMoves.active) doExtraAvoidanceMovements();
         else moveForward();    
     }
 }
@@ -168,21 +172,21 @@ void moveAutonomously() {
 void doExtraAvoidanceMovements() {
     Serial.println("X");
 
-    if      (extraAvoidanceMovements[1]) {
-        extraAvoidanceMovements[1]--;
+    if      (extraMoves.b) {
+        extraMoves.b--;
         moveBackward();
     }
-    else if (extraAvoidanceMovements[0]) {
-        extraAvoidanceMovements[0]--;
+    else if (extraMoves.l) {
+        extraMoves.l--;
         spinLeftward();
     }
-    else if (extraAvoidanceMovements[2]) {
-        extraAvoidanceMovements[2]--;
+    else if (extraMoves.r) {
+        extraMoves.r--;
         spinRightward();
     }
     
-    if (!extraAvoidanceMovements[0] && !extraAvoidanceMovements[1] && !extraAvoidanceMovements[2]) 
-        areThereExtraAvoidanceMovements = false;
+    if (!extraMoves.l && !extraMoves.b && !extraMoves.r) 
+        extraMoves.active = false;
 }
 
 //COMMS
