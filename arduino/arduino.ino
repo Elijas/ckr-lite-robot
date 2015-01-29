@@ -30,6 +30,9 @@
 //MOVEMENT
 #define MOVEMENT_MIN_POWER 130
 #define MOVEMENT_EXTRA_POWER_MULTIPLIER 10
+#define AUTONOMOUS_EXTRAMOVES_BACK 10
+#define AUTONOMOUS_EXTRAMOVES_LEFT 10
+#define AUTONOMOUS_EXTRAMOVES_RIGHT 10
 //COMMS
 #define SerialBT Serial2 //quickref(Mega2560): SerialNo-RXpin-TXpin: 1-19-18 2-17-16 3 15-14
 //LCD
@@ -143,25 +146,24 @@ void moveStop() {
 
 void moveAutonomously() {
     if (!autonomousModeIsOn) {
-        //if (sonar[1].ping()) moveStop(); //prevents manually smashing into walls
         return;
     }
     
     if (sonar[1].ping()) { //method returns zero if no obstacles were detected
         moveBackward();
         extraMoves.active = true;
-        extraMoves.b = 10;
-        extraMoves.r = 10; //will move back and right even further after no more obstacles are detected
+        extraMoves.b = AUTONOMOUS_EXTRAMOVES_BACK;
+        extraMoves.r = AUTONOMOUS_EXTRAMOVES_RIGHT; //will move back and right even further after no more obstacles are detected
     }
     else if (sonar[0].ping()) {
         spinRightward();
         extraMoves.active = true;
-        extraMoves.r = 10;
+        extraMoves.r = AUTONOMOUS_EXTRAMOVES_RIGHT;
     }
     else if (sonar[2].ping()) {
         spinLeftward();
         extraMoves.active = true;
-        extraMoves.l = 10;
+        extraMoves.l = AUTONOMOUS_EXTRAMOVES_LEFT;
     }
     else {
         if (extraMoves.active) doExtraAvoidanceMovements();
