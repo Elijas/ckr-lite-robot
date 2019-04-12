@@ -1,1 +1,1 @@
-Source code for a small autonomous robot called
+Source code for a small autonomous robot 
